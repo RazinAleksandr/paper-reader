@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Start Paper Reader: install, build if needed, run the server and open the browser.
+set -euo pipefail
+cd "$(dirname "$0")"
+PORT="${PORT:-4317}"
+
+[ -d node_modules ] || npm install
+if [ ! -f dist/index.html ] || [ -n "$(find src shared index.html -newer dist/index.html -print -quit)" ]; then
+  npm run build
+fi
+
+if curl -fs "http://localhost:$PORT/api/config" >/dev/null 2>&1; then
+  echo "Paper Reader уже запущен"
+else
+  PORT="$PORT" NODE_ENV=production npx tsx server/index.ts &
+  SERVER=$!
+  trap 'kill $SERVER 2>/dev/null' INT TERM EXIT
+  for _ in $(seq 1 50); do
+    curl -fs "http://localhost:$PORT/api/config" >/dev/null 2>&1 && break
+    sleep 0.2
+  done
+fi
+
+URL="http://localhost:$PORT"
+ARG="${1:-}"
+if [ -n "$ARG" ] && [ -f "$ARG" ]; then
+  # Local file: upload it and jump straight into the reader.
+  ID=$(curl -fs -F "file=@$ARG" "$URL/api/papers/upload" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).id||""))')
+  [ -n "$ID" ] && URL="$URL/paper/$ID"
+elif [ -n "$ARG" ]; then
+  URL="$URL/?open=$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$ARG")"
+fi
+command -v open >/dev/null && open "$URL" || echo "Открой $URL"
+[ -n "${SERVER:-}" ] && wait "$SERVER"

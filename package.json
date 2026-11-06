@@ -1,0 +1,74 @@
+{
+  "name": "paper-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A reader for research papers that you can ask questions while you read: select text or cut out a formula and ask Claude Code, with a session per paper.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "pdf-reader",
+    "research-papers",
+    "arxiv",
+    "reading",
+    "ai-assistant",
+    "pdfjs",
+    "annotation",
+    "study"
+  ],
+  "license": "MIT",
+  "author": "Aleksandr Razin",
+  "homepage": "https://github.com/RazinAleksandr/paper-reader#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RazinAleksandr/paper-reader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RazinAleksandr/paper-reader/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,magenta \"tsx watch --clear-screen=false server/index.ts\" \"vite\"",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "app": "./paper-reader"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "express": "^5.3.0",
+    "linkedom": "^0.18.15",
+    "mammoth": "^1.13.0",
+    "marked": "^18.1.3",
+    "multer": "^2.5.0",
+    "pdfjs-dist": "^6.5.438",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@fontsource-variable/source-serif-4": "^5.3.1",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "katex": "^0.16.47",
+    "lucide-react": "^1.69.0",
+    "mermaid": "^12.3.0",
+    "modern-screenshot": "^4.7.0",
+    "playwright-core": "^1.65.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.5",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  }
+}
