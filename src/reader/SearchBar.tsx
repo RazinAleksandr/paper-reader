@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Loader2, Search, X } from 'lucide-react';
 import type { FindState } from './types.ts';
+import { t } from '../i18n.ts';
 
 export function SearchBar({
   state,
@@ -22,8 +23,8 @@ export function SearchBar({
 
   // Search as you type, a moment after typing stops.
   useEffect(() => {
-    const t = setTimeout(() => onQuery(q), 220);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => onQuery(q), 220);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
@@ -33,7 +34,7 @@ export function SearchBar({
       <input
         ref={inputRef}
         value={q}
-        placeholder="Найти в статье"
+        placeholder={t('Find in paper', 'Найти в статье', '在论文中查找')}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -42,14 +43,18 @@ export function SearchBar({
           } else if (e.key === 'Escape') onClose();
         }}
       />
-      <span className="search-count">{q.trim() && !state.searching ? (state.count ? `${state.index} из ${state.count}` : 'нет') : ''}</span>
-      <button className="icon-btn tiny ghost" title="Предыдущее (Shift+Enter)" onClick={() => onStep(-1)} disabled={!state.count}>
+      <span className="search-count">{q.trim() && !state.searching
+          ? state.count
+            ? t(`${state.index} of ${state.count}`, `${state.index} из ${state.count}`, `${state.index} / ${state.count}`)
+            : t('No results', 'нет', '无结果')
+          : ''}</span>
+      <button className="icon-btn tiny ghost" title={t('Previous (Shift+Enter)', 'Предыдущее (Shift+Enter)', '上一个（Shift+Enter）')} onClick={() => onStep(-1)} disabled={!state.count}>
         <ChevronUp size={15} />
       </button>
-      <button className="icon-btn tiny ghost" title="Следующее (Enter)" onClick={() => onStep(1)} disabled={!state.count}>
+      <button className="icon-btn tiny ghost" title={t('Next (Enter)', 'Следующее (Enter)', '下一个（Enter）')} onClick={() => onStep(1)} disabled={!state.count}>
         <ChevronDown size={15} />
       </button>
-      <button className="icon-btn tiny ghost" title="Закрыть (Esc)" onClick={onClose}>
+      <button className="icon-btn tiny ghost" title={t('Close (Esc)', 'Закрыть (Esc)', '关闭（Esc）')} onClick={onClose}>
         <X size={15} />
       </button>
     </div>

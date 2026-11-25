@@ -10,7 +10,7 @@ if [ ! -f dist/index.html ] || [ -n "$(find src shared index.html -newer dist/in
 fi
 
 if curl -fs "http://localhost:$PORT/api/config" >/dev/null 2>&1; then
-  echo "Paper Reader уже запущен"
+  echo "Paper Reader is already running"
 else
   PORT="$PORT" NODE_ENV=production npx tsx server/index.ts &
   SERVER=$!
@@ -30,5 +30,5 @@ if [ -n "$ARG" ] && [ -f "$ARG" ]; then
 elif [ -n "$ARG" ]; then
   URL="$URL/?open=$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$ARG")"
 fi
-command -v open >/dev/null && open "$URL" || echo "Открой $URL"
+command -v open >/dev/null && open "$URL" || echo "Open $URL"
 [ -n "${SERVER:-}" ] && wait "$SERVER"

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
-import { CLAUDE_BIN, PORT, ROOT, getConfig, saveConfig, skillAvailable } from './config.ts';
+import { CLAUDE_BIN, PORT, ROOT, getConfig, saveConfig, skillAvailable, tr } from './config.ts';
 import {
   deletePaper,
   getChat,
@@ -40,7 +40,7 @@ const wrap = (fn: Handler) => (req: Request, res: Response, next: NextFunction) 
 
 function paperOr404(req: Request, res: Response): PaperMeta | null {
   const meta = getPaper(String(req.params.id));
-  if (!meta) res.status(404).json({ error: 'Статья не найдена' });
+  if (!meta) res.status(404).json({ error: tr('Paper not found', 'Статья не найдена', '未找到这篇论文') });
   return meta;
 }
 
@@ -57,7 +57,7 @@ app.get('/api/health', (_req, res) => {
   if (healthCache && Date.now() - healthCache.at < 60_000) return reply(healthCache.value);
   execFile(CLAUDE_BIN, ['--version'], { timeout: 10_000 }, (err, stdout) => {
     const value = err
-      ? { ok: false, error: (err as NodeJS.ErrnoException).code === 'ENOENT' ? `Не найден Claude CLI (${CLAUDE_BIN})` : err.message }
+      ? { ok: false, error: (err as NodeJS.ErrnoException).code === 'ENOENT' ? tr(`Claude CLI not found (${CLAUDE_BIN})`, `Не найден Claude CLI (${CLAUDE_BIN})`, `未找到 Claude CLI（${CLAUDE_BIN}）`) : err.message }
       : { ok: true, version: stdout.trim() };
     healthCache = { at: Date.now(), value };
     reply(value);
@@ -95,7 +95,7 @@ app.post(
   '/api/papers/upload',
   upload.single('file'),
   wrap(async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
+    if (!req.file) return res.status(400).json({ error: tr('No file received', 'Файл не получен', '没有收到文件') });
     const name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     res.json(await importFile(req.file.buffer, name));
   }),
@@ -105,7 +105,7 @@ app.post(
   '/api/papers/url',
   wrap(async (req, res) => {
     const url = String(req.body?.url || '').trim();
-    if (!url) return res.status(400).json({ error: 'Пустая ссылка' });
+    if (!url) return res.status(400).json({ error: tr('The link is empty', 'Пустая ссылка', '链接为空') });
     res.json(await importUrl(url));
   }),
 );
@@ -210,7 +210,7 @@ app.post('/api/papers/:id/chat', (req, res) => {
       rects: Array.isArray(a.rects) ? a.rects.slice(0, 50) : undefined,
       paperId: typeof a.paperId === 'string' && getPaper(a.paperId) ? a.paperId : undefined,
     }));
-  if (!String(text).trim() && !attachments.length) return res.status(400).json({ error: 'Пустое сообщение' });
+  if (!String(text).trim() && !attachments.length) return res.status(400).json({ error: tr('The message is empty', 'Пустое сообщение', '消息为空') });
   res.json(getSession(String(req.params.id)).send(String(text), attachments));
 });
 
@@ -277,7 +277,7 @@ if (fs.existsSync(dist)) {
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   if (!(err instanceof ImportError)) console.error(err);
-  res.status(err instanceof ImportError ? 422 : 500).json({ error: err.message || 'Ошибка сервера' });
+  res.status(err instanceof ImportError ? 422 : 500).json({ error: err.message || tr('Server error', 'Ошибка сервера', '服务器错误') });
 });
 
 // A failure in one paper's session must not take the whole reader down.

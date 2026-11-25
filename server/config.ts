@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig } from '../shared/types.ts';
+import { answerLanguage, isLang, pick, type Lang } from '../shared/i18n.ts';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Library, chats and settings; override to keep them elsewhere (e.g. in a synced folder). */
@@ -19,7 +20,7 @@ const DEFAULT_CONFIG: AppConfig = {
   model: '',
   effort: '',
   skills: ['/i-have-adhd:i-have-adhd'],
-  language: 'русский',
+  language: '',
 };
 
 fs.mkdirSync(PAPERS_DIR, { recursive: true });
@@ -38,6 +39,18 @@ export function saveConfig(patch: Partial<AppConfig>): AppConfig {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2));
   return next;
 }
+
+/** Interface language chosen in the browser; server-written text (status lines, notes, exports) follows it. */
+export function uiLang(): Lang {
+  const l = getConfig().uiLang;
+  return isLang(l) ? l : 'en';
+}
+
+/** Server-side translation: tr('Reading', 'Читает', '正在读取'). */
+export const tr = (en: string, ru: string, zh: string) => pick(uiLang(), en, ru, zh);
+
+/** Language for Claude's answers: the explicit setting, otherwise the interface language. */
+export const replyLanguage = () => getConfig().language.trim() || answerLanguage(uiLang());
 
 const CLAUDE_HOME = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 

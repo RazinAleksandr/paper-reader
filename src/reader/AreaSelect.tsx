@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { NRect } from '../../shared/types.ts';
+import { t } from '../i18n.ts';
 
 export interface AreaResult {
   el: HTMLElement;
@@ -98,7 +99,7 @@ export function AreaSelect({ root, target = '.pdf-page', onDone, onCancel }: Pro
 
   return createPortal(
     <>
-      {!drag && <div className="area-hint">Выдели область мышкой · Esc — отмена</div>}
+      {!drag && <div className="area-hint">{t('Drag to select an area · Esc to cancel', 'Выдели область мышкой · Esc — отмена', '拖动鼠标框选区域 · Esc 取消')}</div>}
       {drag && <div className="area-rect" style={rectOf(drag, drag.el.getBoundingClientRect())} />}
     </>,
     document.body,

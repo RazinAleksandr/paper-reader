@@ -8,6 +8,7 @@ import './styles.css';
 import { Library } from './pages/Library.tsx';
 import { Reader } from './pages/Reader.tsx';
 import { QuickSwitcher } from './components/QuickSwitcher.tsx';
+import { initLang } from './i18n.ts';
 
 /** Remount the reader per paper so no state leaks from one paper into another. */
 function ReaderRoute({ onSwitcher }: { onSwitcher(): void }) {
@@ -38,10 +39,12 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
+initLang().then(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </StrictMode>,
+  ),
 );

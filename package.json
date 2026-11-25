@@ -1,6 +1,6 @@
 {
   "name": "paper-reader",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "A reader for research papers that you can ask questions while you read: select text or cut out a formula and ask Claude Code, with a session per paper.",

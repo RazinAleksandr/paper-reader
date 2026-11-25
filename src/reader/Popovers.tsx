@@ -2,7 +2,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Copy, MessageCircleQuestion, StickyNote, Trash2 } from 'lucide-react';
 import type { Highlight, HighlightColor } from '../../shared/types.ts';
-import { FRAGMENT_ACTIONS } from '../prompts.ts';
+import { fragmentActions } from '../prompts.ts';
+import { t } from '../i18n.ts';
 import { HL_COLORS, type Capture } from './types.ts';
 
 const COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink'];
@@ -48,20 +49,20 @@ export function SelectionMenu({
   return (
     <Floating anchor={capture.anchor} className="sel-menu">
       {capture.kind === 'image' && capture.image && <img className="sel-thumb" src={capture.image} alt="" />}
-      <button className="sel-primary" onClick={onAsk} title="Добавить в вопрос (A)">
-        <MessageCircleQuestion size={16} /> Спросить
+      <button className="sel-primary" onClick={onAsk} title={t('Add to question (A)', 'Добавить в вопрос (A)', '加入提问（A）')}>
+        <MessageCircleQuestion size={16} /> {t('Ask', 'Спросить', '提问')}
       </button>
-      {FRAGMENT_ACTIONS.map((a) => (
+      {fragmentActions().map((a) => (
         <button key={a.id} onClick={() => onAction(a.prompt)} title={a.prompt}>
           {a.label}
         </button>
       ))}
       <span className="sel-sep" />
       {COLORS.map((c) => (
-        <button key={c} className="swatch" style={{ background: HL_COLORS[c] }} title="Выделить цветом" onClick={() => onHighlight(c)} />
+        <button key={c} className="swatch" style={{ background: HL_COLORS[c] }} title={t('Highlight', 'Выделить цветом', '高亮')} onClick={() => onHighlight(c)} />
       ))}
       {capture.kind === 'text' && (
-        <button title="Копировать" onClick={() => navigator.clipboard.writeText(capture.text)}>
+        <button title={t('Copy', 'Копировать', '复制')} onClick={() => navigator.clipboard.writeText(capture.text)}>
           <Copy size={14} />
         </button>
       )}
@@ -90,23 +91,23 @@ export function HighlightPopover({
     <Floating anchor={anchor} className="hl-pop">
       <div className="row gap-4">
         <button className="sel-primary" onClick={onAsk}>
-          <MessageCircleQuestion size={16} /> Спросить
+          <MessageCircleQuestion size={16} /> {t('Ask', 'Спросить', '提问')}
         </button>
         {COLORS.map((c) => (
           <button key={c} className={`swatch ${h.color === c ? 'on' : ''}`} style={{ background: HL_COLORS[c] }} onClick={() => onColor(c)} />
         ))}
-        <button title="Заметка" onClick={() => setEditing(!editing)}>
+        <button title={t('Note', 'Заметка', '批注')} onClick={() => setEditing(!editing)}>
           <StickyNote size={15} />
         </button>
-        <button title="Удалить выделение" onClick={onDelete}>
+        <button title={t('Remove highlight', 'Удалить выделение', '删除高亮')} onClick={onDelete}>
           <Trash2 size={15} />
         </button>
       </div>
       {editing ? (
         <div className="note-edit" onMouseDown={(e) => e.stopPropagation()}>
-          <textarea autoFocus rows={3} value={note} placeholder="Заметка к выделению" onChange={(e) => setNote(e.target.value)} />
+          <textarea autoFocus rows={3} value={note} placeholder={t('Note on this highlight', 'Заметка к выделению', '给这处高亮写批注')} onChange={(e) => setNote(e.target.value)} />
           <button className="btn primary small" onClick={() => onNote(note)}>
-            Сохранить
+            {t('Save', 'Сохранить', '保存')}
           </button>
         </div>
       ) : (

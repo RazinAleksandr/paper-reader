@@ -6,21 +6,38 @@ import { useTheme } from '../theme.ts';
 import { SettingsDialog } from '../components/SettingsDialog.tsx';
 import { matchPaper } from '../components/QuickSwitcher.tsx';
 import { refreshPapers, tabStore, useActivity } from '../workspace.ts';
+import { t } from '../i18n.ts';
 import type { Health, PaperMeta } from '../../shared/types.ts';
 
 type Sort = 'recent' | 'added' | 'title';
-const SORTS: Record<Sort, string> = { recent: 'Недавно открытые', added: 'Недавно добавленные', title: 'По названию' };
+const SORTS: Sort[] = ['recent', 'added', 'title'];
+const sortLabel = (s: Sort) =>
+  s === 'recent'
+    ? t('Recently opened', 'Недавно открытые', '最近打开')
+    : s === 'added'
+      ? t('Recently added', 'Недавно добавленные', '最近添加')
+      : t('By title', 'По названию', '按标题');
 
 const ACCEPT = '.pdf,.docx,.html,.htm,.md,.markdown,.txt';
 
 function timeAgo(iso?: string) {
   if (!iso) return '';
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'сейчас';
-  if (diff < 3600) return `${Math.floor(diff / 60)} мин`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ч`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} дн`;
-  return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  if (diff < 60) return t('now', 'сейчас', '刚刚');
+  // Compact: the column is narrow.
+  if (diff < 3600) {
+    const n = Math.floor(diff / 60);
+    return t(`${n} min`, `${n} мин`, `${n}分钟前`);
+  }
+  if (diff < 86400) {
+    const n = Math.floor(diff / 3600);
+    return t(`${n} hr`, `${n} ч`, `${n}小时前`);
+  }
+  if (diff < 86400 * 7) {
+    const n = Math.floor(diff / 86400);
+    return t(`${n} ${n === 1 ? 'day' : 'days'}`, `${n} дн`, `${n}天前`);
+  }
+  return new Date(iso).toLocaleDateString(t('en-US', 'ru-RU', 'zh-CN'), { day: 'numeric', month: 'short' });
 }
 
 function sourceLabel(p: PaperMeta) {
@@ -28,10 +45,10 @@ function sourceLabel(p: PaperMeta) {
     try {
       return new URL(p.source.url).hostname.replace(/^www\./, '');
     } catch {
-      return 'ссылка';
+      return t('link', 'ссылка', '链接');
     }
   }
-  return p.source.name?.split('.').pop()?.toUpperCase() || 'файл';
+  return p.source.name?.split('.').pop()?.toUpperCase() || t('file', 'файл', '文件');
 }
 
 const EXAMPLE = 'https://arxiv.org/abs/1706.03762';
@@ -83,11 +100,11 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
     }
   };
 
-  const openFile = (file: File) => run(`Загружаю «${file.name}»…`, () => api.upload(file));
+  const openFile = (file: File) => run(t(`Uploading “${file.name}”…`, `Загружаю «${file.name}»…`, `正在上传“${file.name}”…`), () => api.upload(file));
   const openUrl = (u: string) => {
     const clean = u.trim();
     if (!clean) return;
-    run('Скачиваю статью…', () => api.importUrl(clean));
+    run(t('Downloading the paper…', 'Скачиваю статью…', '正在下载论文…'), () => api.importUrl(clean));
   };
 
   useEffect(() => {
@@ -103,11 +120,17 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
   });
 
   const remove = async (p: PaperMeta) => {
-    if (!confirm(`Удалить «${p.title}» вместе с чатом и выделениями?`)) return;
+    if (!confirm(t(`Delete “${p.title}” with its chat and highlights?`, `Удалить «${p.title}» вместе с чатом и выделениями?`, `删除《${p.title}》及其对话和高亮？`))) return;
     await api.deletePaper(p.id);
     tabStore.close(p.id);
     load();
   };
+
+  const importHint = t(
+    'Or drop a PDF, DOCX, HTML or Markdown file into the window. {K} works too.',
+    'Или перетащи в окно PDF, DOCX, HTML, Markdown. {K} тоже работает.',
+    '也可以把 PDF、DOCX、HTML、Markdown 文件拖进窗口，{K} 粘贴同样可以。',
+  ).split('{K}');
 
   const shown = (papers || [])
     .filter((p) => matchPaper(p, filter))
@@ -145,13 +168,13 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
       <header className="lib-header">
         <div className="wordmark">Paper Reader</div>
         <div className="row gap-2">
-          <button className="icon-btn" title="Быстрый переход (⌘K)" onClick={onSwitcher}>
+          <button className="icon-btn" title={t('Quick open (⌘K)', 'Быстрый переход (⌘K)', '快速跳转（⌘K）')} onClick={onSwitcher}>
             <Search size={16} />
           </button>
-          <button className="icon-btn" title="Тема" onClick={cycle}>
+          <button className="icon-btn" title={t('Theme', 'Тема', '主题')} onClick={cycle}>
             {theme === 'dark' ? <Moon size={16} /> : theme === 'sepia' ? <Coffee size={16} /> : <Sun size={16} />}
           </button>
-          <button className="icon-btn" title="Настройки Claude" onClick={() => setSettingsOpen(true)}>
+          <button className="icon-btn" title={t('Settings', 'Настройки', '设置')} onClick={() => setSettingsOpen(true)}>
             <Settings size={16} />
           </button>
         </div>
@@ -160,11 +183,12 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
       <main className="lib-main">
         {health && !health.claude.ok && (
           <div className="notice">
-            <b>Claude Code не найден</b> — {health.claude.error}. Установи{' '}
+            <b>{t('Claude Code not found', 'Claude Code не найден', '未找到 Claude Code')}</b> — {health.claude.error}. {t('Install', 'Установи', '请安装')}{' '}
             <a href="https://docs.claude.com/en/docs/claude-code" target="_blank" rel="noreferrer">
               Claude Code
             </a>
-            , выполни <code>claude</code> → <code>/login</code> и перезапусти Paper Reader.
+            {t(', run', ', выполни', '，运行')} <code>claude</code> → <code>/login</code>{' '}
+            {t('and restart Paper Reader.', 'и перезапусти Paper Reader.', '然后重启 Paper Reader。')}
           </div>
         )}
 
@@ -178,7 +202,11 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
           <input
             value={busy || url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Ссылка на статью — arXiv, PDF, страница журнала или блога"
+            placeholder={t(
+              'Link to a paper — arXiv, PDF, a journal or blog page',
+              'Ссылка на статью — arXiv, PDF, страница журнала или блога',
+              '论文链接：arXiv、PDF、期刊或博客页面',
+            )}
             disabled={!!busy}
             autoFocus
           />
@@ -186,11 +214,11 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
             <Loader2 size={16} className="spin muted" />
           ) : url.trim() ? (
             <button className="btn primary small">
-              Открыть <ArrowRight size={14} />
+              {t('Open', 'Открыть', '打开')} <ArrowRight size={14} />
             </button>
           ) : (
             <button type="button" className="btn small" onClick={() => fileInput.current?.click()}>
-              Выбрать файл
+              {t('Choose file', 'Выбрать файл', '选择文件')}
             </button>
           )}
           <input
@@ -206,17 +234,23 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
           />
         </form>
         <p className="import-hint">
-          Или перетащи в окно PDF, DOCX, HTML, Markdown. <kbd>⌘V</kbd> тоже работает.
+          {importHint[0]}
+          <kbd>⌘V</kbd>
+          {importHint[1]}
         </p>
         {error && <div className="notice err">{error}</div>}
 
         {papers && papers.length === 0 && (
           <div className="empty-lib">
             <p>
-              Библиотека пустая. Открой статью, выдели непонятное место и спроси Claude — у каждой статьи будет своя сессия Claude Code.
+              {t(
+                'Your library is empty. Open a paper, select anything unclear and ask Claude — each paper gets its own Claude Code session.',
+                'Библиотека пустая. Открой статью, выдели непонятное место и спроси Claude — у каждой статьи будет своя сессия Claude Code.',
+                '论文库还是空的。打开一篇论文，选中看不懂的地方，然后问 Claude——每篇论文都有自己的 Claude Code 会话。',
+              )}
             </p>
             <button className="link" onClick={() => openUrl(EXAMPLE)}>
-              Открыть для примера «Attention Is All You Need»
+              {t('Open “Attention Is All You Need” as an example', 'Открыть для примера «Attention Is All You Need»', '打开示例论文《Attention Is All You Need》')}
             </button>
           </div>
         )}
@@ -225,17 +259,17 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
           <section className="shelf">
             <div className="shelf-head">
               <div className="shelf-title">
-                Библиотека <span className="muted">{papers.length}</span>
+                {t('Library', 'Библиотека', '论文库')} <span className="muted">{papers.length}</span>
               </div>
               <div className="row gap-6">
                 <div className="shelf-search">
                   <Search size={13} className="muted" />
-                  <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Фильтр" />
+                  <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('Filter', 'Фильтр', '筛选')} />
                 </div>
                 <select className="shelf-sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-                  {(Object.keys(SORTS) as Sort[]).map((k) => (
+                  {SORTS.map((k) => (
                     <option key={k} value={k}>
-                      {SORTS[k]}
+                      {sortLabel(k)}
                     </option>
                   ))}
                 </select>
@@ -252,16 +286,18 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
                       <div className="paper-main">
                         <div className="paper-title">
                           {p.title}
-                          {(busyNow || unread) && <span className={`live-dot ${busyNow ? 'busy' : ''}`} title={busyNow ? 'Claude отвечает' : 'Новый ответ'} />}
+                          {(busyNow || unread) && <span className={`live-dot ${busyNow ? 'busy' : ''}`} title={busyNow ? t('Claude is answering', 'Claude отвечает', 'Claude 正在回答') : t('New answer', 'Новый ответ', '有新回答')} />}
                         </div>
                         <div className="paper-meta">
                           {p.authors && <span className="paper-authors">{p.authors}</span>}
                           <span>{sourceLabel(p)}</span>
-                          {p.pages ? <span>{p.pages} стр.</span> : null}
-                          {p.messageCount ? <span>{p.messageCount} вопр.</span> : null}
+                          {p.pages ? <span>{t(`${p.pages} ${p.pages === 1 ? 'page' : 'pages'}`, `${p.pages} стр.`, `${p.pages} 页`)}</span> : null}
+                          {p.messageCount ? (
+                            <span>{t(`${p.messageCount} ${p.messageCount === 1 ? 'question' : 'questions'}`, `${p.messageCount} вопр.`, `${p.messageCount} 个问题`)}</span>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="paper-progress" title={`Прочитано ${pct}%`}>
+                      <div className="paper-progress" title={t(`${pct}% read`, `Прочитано ${pct}%`, `已读 ${pct}%`)}>
                         <div className="bar">
                           <div style={{ width: `${pct}%` }} />
                         </div>
@@ -270,7 +306,7 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
                       <div className="paper-when">{timeAgo(p.openedAt || p.createdAt)}</div>
                       <button
                         className="icon-btn row-del"
-                        title="Удалить"
+                        title={t('Delete', 'Удалить', '删除')}
                         onClick={(e) => {
                           e.preventDefault();
                           remove(p);
@@ -282,12 +318,12 @@ export function Library({ onSwitcher }: { onSwitcher(): void }) {
                   </li>
                 );
               })}
-              {!shown.length && <li className="muted pad">Ничего не нашлось</li>}
+              {!shown.length && <li className="muted pad">{t('Nothing found', 'Ничего не нашлось', '没有找到')}</li>}
             </ul>
           </section>
         )}
       </main>
-      {dragging && <div className="drop-overlay">Отпусти файл, чтобы открыть</div>}
+      {dragging && <div className="drop-overlay">{t('Drop the file to open it', 'Отпусти файл, чтобы открыть', '松开即可打开文件')}</div>}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   );

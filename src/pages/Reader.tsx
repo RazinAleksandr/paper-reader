@@ -21,7 +21,8 @@ import { Sidebar } from '../reader/Sidebar.tsx';
 import { HighlightPopover, SelectionMenu } from '../reader/Popovers.tsx';
 import { ChatPanel, type ChatPanelHandle } from '../chat/ChatPanel.tsx';
 import { useChat } from '../chat/useChat.ts';
-import { FRAGMENT_ACTIONS } from '../prompts.ts';
+import { fragmentActions } from '../prompts.ts';
+import { t } from '../i18n.ts';
 import type { Capture, FindState, OutlineItem, QuestionMark, ViewerHandle } from '../reader/types.ts';
 import { TabBar } from '../components/TabBar.tsx';
 import { SearchBar } from '../reader/SearchBar.tsx';
@@ -198,7 +199,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
     for (const m of chat.messages) {
       if (m.role !== 'user') continue;
       const a = m.attachments?.find((x) => x.page && x.rects?.length);
-      if (a) list.push({ id: m.id, page: a.page!, y: Math.min(...a.rects!.map((r) => r.y)), text: m.text || a.text || 'Вопрос' });
+      if (a) list.push({ id: m.id, page: a.page!, y: Math.min(...a.rects!.map((r) => r.y)), text: m.text || a.text || t('Question', 'Вопрос', '问题') });
     }
     return list;
   }, [chat.messages]);
@@ -217,7 +218,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
         refreshPapers();
         navigate(`/paper/${meta.id}`);
       } catch (e) {
-        alert(`Не получилось открыть ${url}: ${(e as Error).message}`);
+        alert(t(`Couldn't open ${url}: ${(e as Error).message}`, `Не получилось открыть ${url}: ${(e as Error).message}`, `无法打开 ${url}：${(e as Error).message}`));
       } finally {
         setOpening(null);
       }
@@ -282,7 +283,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
         ask(capture);
       } else if (capture && (e.key === 'e' || e.key === 'у')) {
         e.preventDefault();
-        quickAction(capture, FRAGMENT_ACTIONS[0].prompt);
+        quickAction(capture, fragmentActions()[0].prompt);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -310,7 +311,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
       <div className="center-screen">
         <p>{error}</p>
         <Link to="/" className="btn">
-          В библиотеку
+          {t('Back to library', 'В библиотеку', '返回论文库')}
         </Link>
       </div>
     );
@@ -323,14 +324,14 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
 
   const isPdf = paper.kind === 'pdf';
   const Viewer = isPdf ? PdfView : HtmlView;
-  const zoomLabel = zoom ? `${Math.round(zoom * 100)}%` : 'по ширине';
+  const zoomLabel = zoom ? `${Math.round(zoom * 100)}%` : t('Fit width', 'по ширине', '适应宽度');
 
   return (
     <div className="reader" style={{ '--chat-w': `${chatWidth}px` } as React.CSSProperties}>
       <TabBar current={id} onNew={onSwitcher} />
       <header className="topbar">
         <div className="row gap-4 grow min0">
-          <button className={`icon-btn ghost ${sidebar ? 'active' : ''}`} title="Оглавление и выделения" onClick={() => setSidebar(!sidebar)}>
+          <button className={`icon-btn ghost ${sidebar ? 'active' : ''}`} title={t('Contents and highlights', 'Оглавление и выделения', '目录和高亮')} onClick={() => setSidebar(!sidebar)}>
             <PanelLeft size={16} />
           </button>
           {renaming ? (
@@ -345,7 +346,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
               }}
             />
           ) : (
-            <div className="doc-title" title={`${paper.title}\nДвойной клик — переименовать`} onDoubleClick={() => setRenaming(true)}>
+            <div className="doc-title" title={`${paper.title}\n${t('Double-click to rename', 'Двойной клик — переименовать', '双击重命名')}`} onDoubleClick={() => setRenaming(true)}>
               {paper.title}
             </div>
           )}
@@ -368,40 +369,40 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
             </form>
           )}
           <div className="zoom">
-            <button className="icon-btn ghost" title="Уменьшить (⌘−)" onClick={() => stepZoom(-1)}>
+            <button className="icon-btn ghost" title={t('Zoom out (⌘−)', 'Уменьшить (⌘−)', '缩小（⌘−）')} onClick={() => stepZoom(-1)}>
               <Minus size={16} />
             </button>
-            <button className="zoom-label" title="По ширине (⌘0)" onClick={() => changeZoom(0)}>
+            <button className="zoom-label" title={t('Fit to width (⌘0)', 'По ширине (⌘0)', '适应宽度（⌘0）')} onClick={() => changeZoom(0)}>
               {zoomLabel}
             </button>
-            <button className="icon-btn ghost" title="Увеличить (⌘+)" onClick={() => stepZoom(1)}>
+            <button className="icon-btn ghost" title={t('Zoom in (⌘+)', 'Увеличить (⌘+)', '放大（⌘+）')} onClick={() => stepZoom(1)}>
               <Plus size={16} />
             </button>
           </div>
           <button
             className={`tool-btn ${areaMode ? 'active' : ''}`}
-            title="Вырезать область скриншотом (S)"
+            title={t('Capture an area as a screenshot (S)', 'Вырезать область скриншотом (S)', '截取区域（S）')}
             onClick={() => {
               setCapture(null);
               setAreaMode(!areaMode);
             }}
           >
-            <Scissors size={14} /> Область <kbd>S</kbd>
+            <Scissors size={14} /> {t('Area', 'Область', '截图')} <kbd>S</kbd>
           </button>
         </div>
 
         <div className="row gap-4 grow end">
           <button
             className={`icon-btn ghost ${find ? 'active' : ''}`}
-            title="Поиск по статье (⌘F)"
+            title={t('Find in paper (⌘F)', 'Поиск по статье (⌘F)', '在论文中查找（⌘F）')}
             onClick={() => setFind((f) => (f ? null : { query: '', index: 0, count: 0, searching: false }))}
           >
             <Search size={16} />
           </button>
-          <button className="icon-btn ghost" title="Горячие клавиши (?)" onClick={() => setHelp(true)}>
+          <button className="icon-btn ghost" title={t('Keyboard shortcuts (?)', 'Горячие клавиши (?)', '快捷键（?）')} onClick={() => setHelp(true)}>
             <Keyboard size={16} />
           </button>
-          <button className="icon-btn ghost" title="Тема: светлая / сепия / тёмная" onClick={cycle}>
+          <button className="icon-btn ghost" title={t('Theme: light / sepia / dark', 'Тема: светлая / сепия / тёмная', '主题：浅色 / 棕褐 / 深色')} onClick={cycle}>
             {theme === 'dark' ? <Moon size={16} /> : theme === 'sepia' ? <Coffee size={16} /> : <Sun size={16} />}
           </button>
           {!chatOpen && (
@@ -517,7 +518,7 @@ export function Reader({ onSwitcher }: { onSwitcher(): void }) {
       {help && <ShortcutsHelp onClose={() => setHelp(false)} />}
       {opening && (
         <div className="toast">
-          <Loader2 size={15} className="spin" /> Открываю {opening.replace(/^https?:\/\//, '')}…
+          <Loader2 size={15} className="spin" /> {t('Opening', 'Открываю', '正在打开')} {opening.replace(/^https?:\/\//, '')}…
         </div>
       )}
     </div>

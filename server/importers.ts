@@ -7,6 +7,7 @@ import { parseHTML } from 'linkedom';
 import { Readability } from '@mozilla/readability';
 import { extractPdf } from './pdftext.ts';
 import { listPapers, newId, paperDir, savePaper, slugify } from './library.ts';
+import { tr } from './config.ts';
 import type { PaperMeta } from '../shared/types.ts';
 
 const UA =
@@ -37,7 +38,7 @@ interface KnownMeta {
 function formatAuthors(names: string[]): string | undefined {
   const clean = names.map((n) => n.replace(/\s+/g, ' ').trim()).filter(Boolean);
   if (!clean.length) return undefined;
-  return clean.length > 4 ? `${clean.slice(0, 3).join(', ')} и др.` : clean.join(', ');
+  return clean.length > 4 ? `${clean.slice(0, 3).join(', ')} ${tr('et al.', 'и др.', '等')}` : clean.join(', ');
 }
 
 /** Title and authors from the arXiv API: PDF text extraction mangles small caps and ligatures. */
@@ -62,7 +63,8 @@ async function importPdf(buf: Uint8Array, source: PaperMeta['source'], fallbackT
   try {
     info = await extractPdf(new Uint8Array(buf));
   } catch (e) {
-    throw new ImportError(`Не получилось прочитать PDF: ${(e as Error).message}`);
+    const msg = (e as Error).message;
+    throw new ImportError(tr(`Could not read the PDF: ${msg}`, `Не получилось прочитать PDF: ${msg}`, `无法读取 PDF：${msg}`));
   }
   const title = known.title || info.title || fallbackTitle;
   const meta: PaperMeta = {
@@ -95,7 +97,7 @@ function htmlToText(html: string): string {
       if (/^h[1-6]$/.test(tag)) out.push('#'.repeat(Number(tag[1]) + 1) + ' ' + el.textContent.trim());
       else if (['p', 'li', 'pre', 'blockquote', 'figcaption', 'td', 'th', 'dt', 'dd'].includes(tag))
         out.push((tag === 'li' ? '- ' : '') + el.textContent.replace(/\s+/g, tag === 'pre' ? '$&' : ' ').trim());
-      else if (tag === 'img' && el.getAttribute('alt')) out.push(`[изображение: ${el.getAttribute('alt')}]`);
+      else if (tag === 'img' && el.getAttribute('alt')) out.push(`[image: ${el.getAttribute('alt')}]`);
       else walk(el);
     }
   };
@@ -167,7 +169,8 @@ async function importHtml(
   if (opts.readability) {
     const { document } = parseHTML(html);
     const article = new Readability(document as any, { keepClasses: false }).parse();
-    if (!article?.content) throw new ImportError('На странице не нашлось текста статьи');
+    if (!article?.content)
+      throw new ImportError(tr('No article text found on the page', 'На странице не нашлось текста статьи', '页面上没有找到文章正文'));
     title = article.title?.trim() || title;
     authors = article.byline?.trim() || undefined;
     body = article.content;
@@ -194,7 +197,7 @@ async function importHtml(
 }
 
 function baseName(name: string) {
-  return name.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim() || 'Документ';
+  return name.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim() || tr('Document', 'Документ', '文档');
 }
 
 export async function importFile(
@@ -227,7 +230,13 @@ export async function importFile(
       .join('\n');
     return importHtml(html, source, title);
   }
-  throw new ImportError(`Формат ${ext} пока не поддерживается. Подойдут PDF, DOCX, HTML, Markdown, TXT.`);
+  throw new ImportError(
+    tr(
+      `The ${ext} format is not supported yet. Use PDF, DOCX, HTML, Markdown or TXT.`,
+      `Формат ${ext} пока не поддерживается. Подойдут PDF, DOCX, HTML, Markdown, TXT.`,
+      `暂不支持 ${ext} 格式。可以使用 PDF、DOCX、HTML、Markdown、TXT。`,
+    ),
+  );
 }
 
 /** Turn landing-page links of popular paper hosts into direct PDF links. */
@@ -247,6 +256,7 @@ export function normalizePaperUrl(raw: string): string {
 }
 
 const MAX_DOWNLOAD = 150 * 1024 * 1024;
+const tooBig = () => new ImportError(tr('The file is over 150 MB — too large', 'Файл больше 150 МБ — слишком большой', '文件超过 150 MB，太大了'));
 
 /** Decode text with the charset from the header or a <meta> tag; old Russian sites still use windows-1251. */
 function decodeText(buf: Buffer, contentType: string): string {
@@ -265,12 +275,12 @@ function decodeText(buf: Buffer, contentType: string): string {
 
 async function readCapped(res: Response): Promise<Buffer> {
   const declared = Number(res.headers.get('content-length') || 0);
-  if (declared > MAX_DOWNLOAD) throw new ImportError('Файл больше 150 МБ — слишком большой');
+  if (declared > MAX_DOWNLOAD) throw tooBig();
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
     total += chunk.length;
-    if (total > MAX_DOWNLOAD) throw new ImportError('Файл больше 150 МБ — слишком большой');
+    if (total > MAX_DOWNLOAD) throw tooBig();
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
@@ -285,9 +295,13 @@ async function fetchUrl(url: string) {
       signal: AbortSignal.timeout(60000),
     });
   } catch (e) {
-    throw new ImportError(`Не удалось скачать ${url}: ${(e as Error).message}`);
+    const msg = (e as Error).message;
+    throw new ImportError(tr(`Could not download ${url}: ${msg}`, `Не удалось скачать ${url}: ${msg}`, `无法下载 ${url}：${msg}`));
   }
-  if (!res.ok) throw new ImportError(`Сервер ответил ${res.status} для ${url}`);
+  if (!res.ok)
+    throw new ImportError(
+      tr(`The server responded ${res.status} for ${url}`, `Сервер ответил ${res.status} для ${url}`, `服务器对 ${url} 返回了 ${res.status}`),
+    );
   const buf = await readCapped(res);
   return { buf, type: res.headers.get('content-type') || '', finalUrl: res.url || url };
 }
@@ -297,7 +311,7 @@ export async function importUrl(raw: string): Promise<PaperMeta> {
   try {
     url = normalizePaperUrl(raw);
   } catch {
-    throw new ImportError('Это не похоже на ссылку');
+    throw new ImportError(tr("This doesn't look like a link", 'Это не похоже на ссылку', '这看起来不像是链接'));
   }
   const source: PaperMeta['source'] = { type: 'url', url: raw.trim() };
   const dup = existing((p) => {

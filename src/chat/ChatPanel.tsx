@@ -25,7 +25,8 @@ import { QuickSwitcher } from '../components/QuickSwitcher.tsx';
 import { api, fileUrl } from '../api.ts';
 import { Markdown } from './Markdown.tsx';
 import type { ChatState } from './useChat.ts';
-import { FRAGMENT_ACTIONS, NOTES_PROMPT, STARTERS } from '../prompts.ts';
+import { fragmentActions, notesPrompt, starters } from '../prompts.ts';
+import { pageRef, t } from '../i18n.ts';
 import type { Attachment, ChatMessage, PaperMeta, ToolUse } from '../../shared/types.ts';
 
 export interface ChatPanelHandle {
@@ -50,7 +51,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       className="icon-btn ghost tiny"
-      title="Скопировать"
+      title={t('Copy', 'Скопировать', '复制')}
       onClick={() => {
         navigator.clipboard.writeText(text);
         setDone(true);
@@ -72,7 +73,7 @@ function Tools({ tools, live }: { tools: ToolUse[]; live?: boolean }) {
       <button className="tools-head" onClick={() => setOpen(!open)}>
         <ChevronRight size={14} className={open ? 'rot90' : ''} />
         {live && running.length ? <Loader2 size={13} className="spin" /> : <FileText size={13} />}
-        <span className="tools-summary">{open || !live ? `${tools.length} ${plural(tools.length, 'действие', 'действия', 'действий')}` : last.summary}</span>
+        <span className="tools-summary">{open || !live ? actionCount(tools.length) : last.summary}</span>
       </button>
       {open && (
         <ul className="tools-list">
@@ -96,12 +97,15 @@ function plural(n: number, one: string, few: string, many: string) {
   return many;
 }
 
+const actionCount = (n: number) =>
+  t(`${n} ${n === 1 ? 'action' : 'actions'}`, `${n} ${plural(n, 'действие', 'действия', 'действий')}`, `${n} 个操作`);
+
 function AttachmentView({ a, paperId, onJump }: { a: Attachment; paperId: string; onJump(a: Attachment): void }) {
   const [zoomed, setZoomed] = useState(false);
   const navigate = useNavigate();
   if (a.kind === 'paper')
     return (
-      <button className="att-paper" onClick={() => a.paperId && navigate(`/paper/${a.paperId}`)} title="Открыть статью">
+      <button className="att-paper" onClick={() => a.paperId && navigate(`/paper/${a.paperId}`)} title={t('Open paper', 'Открыть статью', '打开论文')}>
         <FileText size={13} /> {a.text}
       </button>
     );
@@ -119,7 +123,7 @@ function AttachmentView({ a, paperId, onJump }: { a: Attachment; paperId: string
                 onJump(a);
               }}
             >
-              стр. {a.page}
+              {pageRef(a.page)}
             </button>
           ) : null}
         </div>
@@ -132,10 +136,10 @@ function AttachmentView({ a, paperId, onJump }: { a: Attachment; paperId: string
     );
   }
   return (
-    <button className="att-quote" onClick={() => onJump(a)} title="Показать в статье">
+    <button className="att-quote" onClick={() => onJump(a)} title={t('Show in paper', 'Показать в статье', '在论文中显示')}>
       <Quote size={12} />
       <span className="att-quote-text">{a.text}</span>
-      {a.page ? <span className="att-page-inline">стр. {a.page}</span> : null}
+      {a.page ? <span className="att-page-inline">{pageRef(a.page)}</span> : null}
     </button>
   );
 }
@@ -183,13 +187,13 @@ function MessageView({
           <span className="grow">{m.error}</span>
           {onRetry && (
             <button className="chip" onClick={onRetry}>
-              <RefreshCw size={12} /> Повторить
+              <RefreshCw size={12} /> {t('Retry', 'Повторить', '重试')}
             </button>
           )}
         </div>
       )}
       <div className="msg-foot">
-        {m.interrupted && <span className="muted small">остановлено</span>}
+        {m.interrupted && <span className="muted small">{t('stopped', 'остановлено', '已停止')}</span>}
         {m.text && <CopyButton text={m.text} />}
       </div>
     </div>
@@ -199,22 +203,27 @@ function MessageView({
 function StatusLine({ chat }: { chat: ChatState }) {
   const s = chat.session;
   const label = !chat.connected
-    ? 'нет связи'
+    ? t('disconnected', 'нет связи', '未连接')
     : !s || s.status === 'offline'
-      ? 'спит'
+      ? t('asleep', 'спит', '休眠')
       : s.status === 'starting'
-        ? 'запуск'
+        ? t('starting', 'запуск', '启动中')
         : s.status === 'busy'
           ? s.warming
-            ? 'настройка'
-            : 'пишет'
-          : 'готов';
+            ? t('setting up', 'настройка', '准备中')
+            : t('writing', 'пишет', '回答中')
+          : t('ready', 'готов', '就绪');
   const model = s?.model?.replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, ' $1.$2');
   const skills = s?.skills.map((x) => x.replace(/^\//, '').split(':').pop()).join(', ');
   return (
     <div
       className="status-line"
-      title={[model && `Модель: ${model}`, skills && `Скиллы: ${skills}${s?.skillsActive ? '' : ' (включаются)'}`].filter(Boolean).join('\n')}
+      title={[
+        model && t(`Model: ${model}`, `Модель: ${model}`, `模型：${model}`),
+        skills && t(`Skills: ${skills}`, `Скиллы: ${skills}`, `技能：${skills}`) + (s?.skillsActive ? '' : t(' (activating)', ' (включаются)', '（启用中）')),
+      ]
+        .filter(Boolean)
+        .join('\n')}
     >
       <span className={`dot ${chat.connected ? s?.status || 'offline' : 'offline'}`} />
       <span>{label}</span>
@@ -300,6 +309,11 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
 
   const visible = chat.messages;
   const empty = !visible.some((m) => m.role !== 'system') && !chat.partial;
+  const emptyHint = t(
+    'Select anything unclear in the paper and a menu with questions appears. {S} cuts out a formula, figure or table as a screenshot.',
+    'Выдели в статье непонятное место — появится меню с вопросами. {S} вырезает формулу, рисунок или таблицу скриншотом.',
+    '在论文中选中看不懂的地方，就会弹出提问菜单。按 {S} 可截取公式、图片或表格。',
+  ).split('{S}');
 
   return (
     <aside className="chat">
@@ -309,7 +323,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
             Claude
           </button>
           <button className={tab === 'notes' ? 'on' : ''} onClick={() => setTab('notes')}>
-            Конспект
+            {t('Notes', 'Конспект', '笔记')}
           </button>
         </div>
         <div className="row gap-2">
@@ -323,25 +337,34 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
                 <div className="menu-backdrop" onClick={() => setMenu(false)} />
                 <div className="menu">
                   <button disabled={!chat.session?.resumeCommand} onClick={copyResume}>
-                    <Terminal size={15} /> Скопировать команду для терминала
+                    <Terminal size={15} /> {t('Copy command for Terminal', 'Скопировать команду для терминала', '复制终端命令')}
                   </button>
                   <a className="menu-link" href={`/api/papers/${paper.id}/export`} onClick={() => setMenu(false)}>
-                    <Download size={15} /> Экспорт: выделения, конспект и чат (.md)
+                    <Download size={15} /> {t('Export highlights, notes and chat (.md)', 'Экспорт: выделения, конспект и чат (.md)', '导出：高亮、笔记和对话（.md）')}
                   </a>
                   <button
                     onClick={() => {
                       setMenu(false);
-                      if (confirm('Начать новую сессию Claude для этой статьи? Текущий чат уйдёт в архив.')) chat.reset();
+                      if (
+                        confirm(
+                          t(
+                            'Start a new Claude session for this paper? The current chat will be archived.',
+                            'Начать новую сессию Claude для этой статьи? Текущий чат уйдёт в архив.',
+                            '要为这篇论文开始新的 Claude 会话吗？当前对话将被归档。',
+                          ),
+                        )
+                      )
+                        chat.reset();
                     }}
                   >
-                    <RotateCcw size={15} /> Новая сессия
+                    <RotateCcw size={15} /> {t('New session', 'Новая сессия', '新会话')}
                   </button>
                   {chat.session?.sessionId && <div className="menu-note">session: {chat.session.sessionId}</div>}
                 </div>
               </>
             )}
           </div>
-          <button className="icon-btn ghost" title="Скрыть чат" onClick={onClose}>
+          <button className="icon-btn ghost" title={t('Hide chat', 'Скрыть чат', '隐藏对话')} onClick={onClose}>
             <X size={16} />
           </button>
         </div>
@@ -353,7 +376,13 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
             <Markdown text={notes} onPage={onPage} />
           ) : (
             <div className="empty-notes">
-              <p>Конспекта пока нет. Claude соберёт его из статьи и твоих вопросов в notes.md.</p>
+              <p>
+                {t(
+                  'No notes yet. Claude will put them together in notes.md from the paper and your questions.',
+                  'Конспекта пока нет. Claude соберёт его из статьи и твоих вопросов в notes.md.',
+                  '还没有笔记。Claude 会根据论文和你的提问整理到 notes.md 中。',
+                )}
+              </p>
             </div>
           )}
           <button
@@ -361,10 +390,10 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
             disabled={busy}
             onClick={() => {
               setTab('chat');
-              submit(NOTES_PROMPT);
+              submit(notesPrompt());
             }}
           >
-            <NotebookPen size={16} /> {notes ? 'Обновить конспект' : 'Собрать конспект'}
+            <NotebookPen size={16} /> {notes ? t('Update notes', 'Обновить конспект', '更新笔记') : t('Write notes', 'Собрать конспект', '生成笔记')}
           </button>
         </div>
       ) : (
@@ -379,12 +408,13 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
           {empty && (
             <div className="chat-empty">
               <p>
-                Выдели в статье непонятное место — появится меню с вопросами. <kbd>S</kbd> вырезает формулу, рисунок или таблицу
-                скриншотом.
+                {emptyHint[0]}
+                <kbd>S</kbd>
+                {emptyHint[1]}
               </p>
               <div className="starters">
-                <div className="starters-label">Или начни с</div>
-                {STARTERS.map((s) => (
+                <div className="starters-label">{t('Or start with', 'Или начни с', '或者从这里开始')}</div>
+                {starters().map((s) => (
                   <button key={s.id} className="starter" onClick={() => submit(s.prompt)}>
                     <span>{s.label}</span>
                     <ArrowUp size={13} className="starter-arrow" />
@@ -417,7 +447,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
               )}
             </div>
           )}
-          {!!chat.session?.queued && <div className="sys-msg">в очереди: {chat.session.queued}</div>}
+          {!!chat.session?.queued && <div className="sys-msg">{t(`queued: ${chat.session.queued}`, `в очереди: ${chat.session.queued}`, `排队中：${chat.session.queued}`)}</div>}
         </div>
       )}
 
@@ -429,7 +459,13 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
                 {attachments.map((a, i) => (
                   <div key={i} className="pending-item">
                     {a.kind === 'image' ? <img src={a.image} alt="" /> : a.kind === 'paper' ? <FileText size={12} /> : <Quote size={12} />}
-                    <span>{a.kind === 'image' ? `Скриншот${a.page ? ` · стр. ${a.page}` : ''}` : a.kind === 'paper' ? `Статья: ${a.text}` : a.text}</span>
+                    <span>
+                      {a.kind === 'image'
+                        ? t('Screenshot', 'Скриншот', '截图') + (a.page ? ` · ${pageRef(a.page)}` : '')
+                        : a.kind === 'paper'
+                          ? t(`Paper: ${a.text}`, `Статья: ${a.text}`, `论文：${a.text}`)
+                          : a.text}
+                    </span>
                     <button className="icon-btn ghost tiny" onClick={() => onRemoveAttachment(i)}>
                       <X size={12} />
                     </button>
@@ -437,7 +473,7 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
                 ))}
               </div>
               <div className="quick">
-                {FRAGMENT_ACTIONS.map((q) => (
+                {fragmentActions().map((q) => (
                   <button key={q.id} className="chip" onClick={() => submit(q.prompt)}>
                     {q.label}
                   </button>
@@ -446,14 +482,22 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
             </>
           )}
           <div className="input-row">
-            <button className="icon-btn ghost attach-btn" title="Прикрепить другую статью из библиотеки — Claude прочитает её для ответа" onClick={() => setPicking(true)}>
+            <button className="icon-btn ghost attach-btn" title={t(
+                'Attach another paper from your library — Claude will read it to answer',
+                'Прикрепить другую статью из библиотеки — Claude прочитает её для ответа',
+                '从论文库附加另一篇论文——Claude 会读完它再回答',
+              )} onClick={() => setPicking(true)}>
               <Paperclip size={17} />
             </button>
             <textarea
               ref={inputRef}
               value={text}
               rows={1}
-              placeholder={attachments.length ? 'Что непонятно в этом фрагменте?' : 'Спроси про статью…  (/ — фокус)'}
+              placeholder={
+                attachments.length
+                  ? t("What's unclear in this passage?", 'Что непонятно в этом фрагменте?', '这段内容哪里没看懂？')
+                  : t('Ask about the paper…  (/ to focus)', 'Спроси про статью…  (/ — фокус)', '就这篇论文提问…  （按 / 聚焦）')
+              }
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -472,21 +516,27 @@ export const ChatPanel = forwardRef<ChatPanelHandle, Props>(function ChatPanel(p
               }}
             />
             {busy ? (
-              <button className="send stop" title="Остановить" onClick={chat.interrupt}>
+              <button className="send stop" title={t('Stop', 'Остановить', '停止')} onClick={chat.interrupt}>
                 <Square size={14} fill="currentColor" />
               </button>
             ) : (
-              <button className="send" title="Отправить (Enter)" disabled={!text.trim() && !attachments.length} onClick={() => submit()}>
+              <button className="send" title={t('Send (Enter)', 'Отправить (Enter)', '发送（Enter）')} disabled={!text.trim() && !attachments.length} onClick={() => submit()}>
                 <ArrowUp size={16} />
               </button>
             )}
           </div>
-          <div className="composer-hint">Enter — отправить · ⌘V — картинка · скрепка — добавить другую статью</div>
+          <div className="composer-hint">
+            {t(
+              'Enter to send · ⌘V to paste an image · paper clip to add another paper',
+              'Enter — отправить · ⌘V — картинка · скрепка — добавить другую статью',
+              'Enter 发送 · ⌘V 粘贴图片 · 回形针添加其他论文',
+            )}
+          </div>
         </div>
       )}
       {picking && (
         <QuickSwitcher
-          title="Какую статью прикрепить к вопросу?"
+          title={t('Which paper to attach to your question?', 'Какую статью прикрепить к вопросу?', '要附加哪篇论文到你的问题中？')}
           exclude={paper.id}
           onClose={() => setPicking(false)}
           onPick={(p) => {

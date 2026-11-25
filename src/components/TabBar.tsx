@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Library, Loader2, Plus, X } from 'lucide-react';
 import { tabStore, useActivity, usePapers, useTabs } from '../workspace.ts';
+import { t } from '../i18n.ts';
 
 /** Open papers as tabs; a dot shows where Claude is answering or has a new answer. */
 export function TabBar({ current, onNew }: { current: string; onNew(): void }) {
@@ -17,7 +18,7 @@ export function TabBar({ current, onNew }: { current: string; onNew(): void }) {
 
   return (
     <div className="tabbar">
-      <Link to="/" className="tab-home" title="Библиотека">
+      <Link to="/" className="tab-home" title={t('Library', 'Библиотека', '论文库')}>
         <Library size={15} />
       </Link>
       <div className="tabs">
@@ -40,11 +41,11 @@ export function TabBar({ current, onNew }: { current: string; onNew(): void }) {
                 if (moved) tabStore.move(moved, tabs.indexOf(id));
               }}
             >
-              {busy ? <Loader2 size={12} className="spin tab-state" /> : unread ? <span className="tab-unread" title="Новый ответ Claude" /> : null}
+              {busy ? <Loader2 size={12} className="spin tab-state" /> : unread ? <span className="tab-unread" title={t('New answer from Claude', 'Новый ответ Claude', 'Claude 有新回答')} /> : null}
               <span className="tab-title">{p?.title || '…'}</span>
               <button
                 className="tab-close"
-                title="Закрыть вкладку"
+                title={t('Close tab', 'Закрыть вкладку', '关闭标签页')}
                 onClick={(e) => {
                   e.stopPropagation();
                   close(id);
@@ -55,7 +56,7 @@ export function TabBar({ current, onNew }: { current: string; onNew(): void }) {
             </div>
           );
         })}
-        <button className="tab-new" title="Открыть статью (⌘K)" onClick={onNew}>
+        <button className="tab-new" title={t('Open paper (⌘K)', 'Открыть статью (⌘K)', '打开论文（⌘K）')} onClick={onNew}>
           <Plus size={15} />
         </button>
       </div>

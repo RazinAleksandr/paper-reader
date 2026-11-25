@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Globe, Link2, Loader2, Search } from 'lucide-react';
 import { api } from '../api.ts';
 import { refreshPapers, usePapers } from '../workspace.ts';
+import { t } from '../i18n.ts';
 import type { PaperMeta } from '../../shared/types.ts';
 
 export function matchPaper(p: PaperMeta, q: string) {
@@ -82,7 +83,7 @@ export function QuickSwitcher({
           <input
             autoFocus
             value={q}
-            placeholder={title || 'Найти статью или вставить ссылку…'}
+            placeholder={title || t('Find a paper or paste a link…', 'Найти статью или вставить ссылку…', '查找论文或粘贴链接…')}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') onClose();
@@ -112,10 +113,10 @@ export function QuickSwitcher({
           {isUrl && !onPick && (
             <button className={`qs-item ${sel === items.length ? 'on' : ''}`} onMouseEnter={() => setSel(items.length)} onClick={() => choose(items.length)}>
               <Link2 size={15} />
-              <span className="qs-title">Открыть ссылку {q.trim()}</span>
+              <span className="qs-title">{t('Open link', 'Открыть ссылку', '打开链接')} {q.trim()}</span>
             </button>
           )}
-          {!total && <div className="qs-empty">{papers.length ? 'Ничего не нашлось' : 'Библиотека пуста'}</div>}
+          {!total && <div className="qs-empty">{papers.length ? t('Nothing found', 'Ничего не нашлось', '没有找到') : t('Your library is empty', 'Библиотека пуста', '论文库是空的')}</div>}
         </div>
       </div>
     </div>

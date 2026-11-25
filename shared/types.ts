@@ -1,3 +1,5 @@
+import type { Lang } from './i18n.ts';
+
 // Types shared by the server and the web client.
 
 export type PaperKind = 'pdf' | 'html';
@@ -120,5 +122,8 @@ export interface AppConfig {
   effort: string;
   /** slash commands sent once when a paper session is created */
   skills: string[];
+  /** language Claude answers in; empty = the interface language */
   language: string;
+  /** interface language; unset until the browser picks one on first start */
+  uiLang?: Lang;
 }

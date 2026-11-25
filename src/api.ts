@@ -2,7 +2,7 @@ import type { AppConfig, ChatMessage, Health, Highlight, PaperMeta, SessionInfo 
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error || `Ошибка ${res.status}`);
+  if (!res.ok) throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
   return body as T;
 }
 

@@ -3,8 +3,9 @@ import { EventEmitter } from 'node:events';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CLAUDE_BIN, DATA_DIR, SESSION_CWD, activeSkills, getConfig } from './config.ts';
+import { CLAUDE_BIN, DATA_DIR, SESSION_CWD, activeSkills, getConfig, replyLanguage, tr, uiLang } from './config.ts';
 import { appendChat, getChat, getPaper, newId, paperDir, saveChat, updatePaper } from './library.ts';
+import { pageLabel } from '../shared/i18n.ts';
 import type { Attachment, ChatEvent, ChatMessage, GlobalEvent, PaperMeta, SessionInfo, SessionStatus, ToolUse } from '../shared/types.ts';
 
 const IDLE_MS = 30 * 60 * 1000;
@@ -62,31 +63,33 @@ function rulePath(abs: string) {
 function systemPrompt(meta: PaperMeta, language: string): string {
   const dir = relPath(paperDir(meta.id));
   const pdf = meta.kind === 'pdf';
+  // Page links use the interface language's label, so they read naturally next to the rest of the UI.
+  const pageLink = `[${pageLabel(uiLang(), 5)}](#page=5)`;
   return [
-    'Ты работаешь внутри приложения Paper Reader — читалки научных статей. Эта сессия привязана к одной статье: пользователь задаёт вопросы прямо во время чтения.',
+    'You are working inside Paper Reader, an app for reading research papers. This session is tied to one paper: the user asks questions while reading it.',
     '',
-    `Статья: «${meta.title}»${meta.authors ? `, ${meta.authors}` : ''}${meta.pages ? `, ${meta.pages} стр.` : ''}.`,
-    'Файлы статьи (пути от текущей папки):',
+    `Paper: "${meta.title}"${meta.authors ? `, ${meta.authors}` : ''}${meta.pages ? `, ${meta.pages} pages` : ''}.`,
+    'Paper files (paths relative to the current directory):',
     pdf
-      ? `- ${dir}/paper.md — полный извлечённый текст, разбит по страницам заголовками «## [стр. N]». Начинай с него: Grep по ключевым словам, Read нужных кусков.`
-      : `- ${dir}/paper.md — полный текст статьи. Начинай с него: Grep по ключевым словам, Read нужных кусков.`,
+      ? `- ${dir}/paper.md — the full extracted text, split by page: each page starts with a \`<!-- page N -->\` marker. Start here: Grep for keywords, Read the parts you need.`
+      : `- ${dir}/paper.md — the full text of the paper. Start here: Grep for keywords, Read the parts you need.`,
     pdf
-      ? `- ${dir}/paper.pdf — оригинал. Если нужно увидеть рисунок, таблицу или формулу, которых нет в тексте, — Read этого файла с параметром pages.`
-      : `- ${dir}/article.html — оригинальная разметка статьи.`,
-    `- ${dir}/snippets/ — скриншоты, которые пользователь вырезал из статьи (они же приходят в сообщениях картинками).`,
-    `- ${dir}/notes.md — конспект пользователя. Создавай и дополняй его только когда пользователь просит конспект или заметку.`,
+      ? `- ${dir}/paper.pdf — the original. To see a figure, table or formula that is missing from the text, Read this file with the pages parameter.`
+      : `- ${dir}/article.html — the original markup of the article.`,
+    `- ${dir}/snippets/ — screenshots the user cut out of the paper (they also arrive as images in the messages).`,
+    `- ${dir}/notes.md — the user's notes. Create or extend it only when the user asks for notes or a summary.`,
     '',
-    'Как приходят вопросы: пользователь выделяет текст или вырезает область скриншотом. Сообщение содержит блоки «Фрагмент · стр. N» с цитатой и/или изображения. Отвечай именно про этот фрагмент, но в контексте всей статьи: при необходимости загляни в paper.md, чтобы понять, откуда взялись обозначения.',
+    'How questions arrive: the user selects text or cuts out an area as a screenshot. A message contains blocks like "[Fragment 1 · p. N]" with a quote and/or "[Screenshot 2 · p. N]" with an attached image, followed by "Question: …". Everything in square brackets is added by the app; only the text after "Question:" is written by the user. Answer about that fragment specifically, but in the context of the whole paper: look into paper.md when needed to understand where the notation comes from.',
     '',
-    'Как отвечать:',
-    `- Язык ответа: ${language} (если пользователь пишет на другом языке — отвечай на его языке). Английский термин давай в скобках при первом упоминании.`,
-    '- Пользователь не специалист в теме статьи. Сначала интуиция и простая аналогия, потом точный смысл. Расшифровывай каждое обозначение в формуле.',
-    '- Формулы — только LaTeX: $...$ внутри строки, $$...$$ отдельным блоком.',
+    'How to answer:',
+    `- Answer in ${language}. If the user's own question is written in a different language, answer in that language instead. When answering in a language other than English, give the English term in parentheses on first mention.`,
+    "- The user is not an expert in the paper's field. Start with intuition and a simple analogy, then give the precise meaning. Explain every symbol in a formula.",
+    '- Formulas only in LaTeX: $...$ inline, $$...$$ as a separate block.',
     pdf
-      ? '- Ссылаясь на место в статье, ставь ссылку вида [стр. 5](#page=5): в интерфейсе она кликабельна и прокручивает статью к этой странице.'
-      : '- Ссылаясь на место в статье, цитируй короткий кусок текста, чтобы его было легко найти.',
-    '- Схемы рисуй блоком ```mermaid, если это помогает понять устройство метода.',
-    `- Не редактируй никакие файлы, кроме ${dir}/notes.md. Код приложения Paper Reader в этой сессии не трогай.`,
+      ? `- When referring to a place in the paper, add a link like ${pageLink}: in the interface it is clickable and scrolls the paper to that page.`
+      : '- When referring to a place in the paper, quote a short piece of its text so it is easy to find.',
+    '- Draw diagrams in a ```mermaid block when it helps to understand how the method works.',
+    `- Do not edit any files except ${dir}/notes.md. Do not touch the Paper Reader app code in this session.`,
   ].join('\n');
 }
 
@@ -101,8 +104,13 @@ function summarizeTool(name: string, input: any): string {
   switch (name) {
     case 'Read': {
       const file = shortPath(String(i.file_path || ''));
-      if (i.pages) return `Смотрит ${file}, стр. ${i.pages}`;
-      return `Читает ${file}${i.offset ? ` (с строки ${i.offset})` : ''}`;
+      if (i.pages) {
+        const pg = pageLabel(uiLang(), i.pages);
+        return tr(`Looking at ${file}, ${pg}`, `Смотрит ${file}, ${pg}`, `正在查看 ${file}，${pg}`);
+      }
+      return i.offset
+        ? tr(`Reading ${file} (from line ${i.offset})`, `Читает ${file} (с строки ${i.offset})`, `正在阅读 ${file}（从第 ${i.offset} 行起）`)
+        : tr(`Reading ${file}`, `Читает ${file}`, `正在阅读 ${file}`);
     }
     case 'Grep': {
       // Regexes read badly: show the words Claude is looking for.
@@ -113,22 +121,32 @@ function summarizeTool(name: string, input: any): string {
         .filter((w) => w.length > 1)
         .slice(0, 4)
         .join(', ');
-      return words ? `Ищет в тексте: ${words}` : 'Ищет в тексте';
+      return words
+        ? tr(`Searching the text: ${words}`, `Ищет в тексте: ${words}`, `正在文中搜索：${words}`)
+        : tr('Searching the text', 'Ищет в тексте', '正在文中搜索');
     }
     case 'Glob':
-      return `Ищет файлы ${i.pattern}`;
+      return tr(`Looking for files ${i.pattern}`, `Ищет файлы ${i.pattern}`, `正在查找文件 ${i.pattern}`);
     case 'WebSearch':
-      return `Ищет в интернете: ${i.query}`;
-    case 'WebFetch':
-      return `Открывает ${String(i.url || '').replace(/^https?:\/\//, '').slice(0, 60)}`;
+      return tr(`Searching the web: ${i.query}`, `Ищет в интернете: ${i.query}`, `正在网上搜索：${i.query}`);
+    case 'WebFetch': {
+      const url = String(i.url || '').replace(/^https?:\/\//, '').slice(0, 60);
+      return tr(`Opening ${url}`, `Открывает ${url}`, `正在打开 ${url}`);
+    }
     case 'Write':
-    case 'Edit':
-      return `Обновляет ${shortPath(String(i.file_path || ''))}`;
-    case 'Skill':
-      return `Скилл ${i.skill || i.command || ''}`.trim();
+    case 'Edit': {
+      const file = shortPath(String(i.file_path || ''));
+      return tr(`Updating ${file}`, `Обновляет ${file}`, `正在更新 ${file}`);
+    }
+    case 'Skill': {
+      const skill = i.skill || i.command || '';
+      return tr(`Skill ${skill}`, `Скилл ${skill}`, `技能 ${skill}`).trim();
+    }
     case 'Task':
-    case 'Agent':
-      return `Подагент: ${i.description || ''}`.trim();
+    case 'Agent': {
+      const task = i.description || '';
+      return tr(`Subagent: ${task}`, `Подагент: ${task}`, `子代理：${task}`).trim();
+    }
     default:
       return name.replace(/^mcp__/, '').replace(/__/g, ' · ');
   }
@@ -139,29 +157,31 @@ function attachmentsToContent(text: string, attachments: Attachment[], imageFile
   const lines: string[] = [];
   let imgN = 0;
   attachments.forEach((a, idx) => {
-    const where = a.page ? ` · стр. ${a.page}` : '';
+    // Labels are instructions to Claude, so they stay in English whatever the interface language.
+    const where = a.page ? ` · p. ${a.page}` : '';
     if (a.kind === 'paper' && a.paperId) {
       const other = getPaper(a.paperId);
       if (!other) return;
       lines.push(
-        `[Связанная статья: «${other.title}». Полный текст: ${relPath(path.join(paperDir(other.id), 'paper.md'))}${other.kind === 'pdf' ? `, оригинал: ${relPath(path.join(paperDir(other.id), 'paper.pdf'))}` : ''}. Прочитай из неё то, что нужно для ответа.]`,
+        `[Related paper: "${other.title}". Full text: ${relPath(path.join(paperDir(other.id), 'paper.md'))}${other.kind === 'pdf' ? `, original: ${relPath(path.join(paperDir(other.id), 'paper.pdf'))}` : ''}. Read whatever you need from it for the answer.]`,
         '',
       );
     } else if (a.kind === 'text' && a.text) {
-      lines.push(`[Фрагмент ${idx + 1}${where}]`, a.text.split('\n').map((l) => `> ${l}`).join('\n'), '');
+      lines.push(`[Fragment ${idx + 1}${where}]`, a.text.split('\n').map((l) => `> ${l}`).join('\n'), '');
     } else if (a.kind === 'image' && a.image?.startsWith('data:')) {
       const m = a.image.match(/^data:(image\/[a-z+]+);base64,(.+)$/);
       if (!m) return;
       blocks.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
       const file = imageFiles[imgN++];
-      lines.push(`[Скриншот ${idx + 1}${where} — прикреплён изображением${file ? `, файл ${relPath(file)}` : ''}]`);
-      if (a.text) lines.push(`Текст в этой области (извлечён из PDF, может быть неточным): ${a.text}`);
+      lines.push(`[Screenshot ${idx + 1}${where} — attached as an image${file ? `, file ${relPath(file)}` : ''}]`);
+      if (a.text) lines.push(`Text in this area (extracted from the PDF, may be inaccurate): ${a.text}`);
       lines.push('');
     }
   });
-  const question = text.trim();
-  const body = lines.length ? `${lines.join('\n')}\n${question ? `Вопрос: ${question}` : ''}` : question;
-  blocks.push({ type: 'text', text: body.trim() || 'Объясни этот фрагмент.' });
+  // Nothing typed: an app label (not the user's words), so Claude keeps the configured answer language.
+  const question = text.trim() ? `Question: ${text.trim()}` : '[No question typed: explain the attached material.]';
+  const body = lines.length ? `${lines.join('\n')}\n${question}` : question;
+  blocks.push({ type: 'text', text: body.trim() });
   return blocks;
 }
 
@@ -258,7 +278,9 @@ class PaperSession {
       '--verbose',
       '--include-partial-messages',
       ...(this.resuming ? ['--resume', meta.sessionId!] : ['--session-id', meta.sessionId!, '-n', `📄 ${meta.title.slice(0, 70)}`]),
-      '--append-system-prompt', systemPrompt(meta, cfg.language),
+      '--append-system-prompt', systemPrompt(meta, replyLanguage()),
+      // The app's answer language wins over a "language" set in the user's own Claude Code settings.
+      '--settings', JSON.stringify({ language: replyLanguage() }),
       '--tools', 'Read,Grep,Glob,WebSearch,WebFetch,Write,Edit,Skill,ToolSearch',
       // Reads inside the product folder need no rule; anything outside it is refused,
       // so a prompt injection in a paper cannot reach the reader's files.
@@ -328,7 +350,13 @@ class PaperSession {
       if (turn) this.queue.unshift({ kind: turn.kind, skill: turn.skill, content: turn.content });
       updatePaper(this.paperId, { sessionId: crypto.randomUUID(), sessionStarted: false, activatedSkills: [] });
       this.queue = this.queue.filter((q) => q.kind !== 'skill');
-      this.addSystem('Прежняя сессия Claude не найдена — начата новая.');
+      this.addSystem(
+        tr(
+          'The previous Claude session was not found — started a new one.',
+          'Прежняя сессия Claude не найдена — начата новая.',
+          '未找到之前的 Claude 会话，已开始新的会话。',
+        ),
+      );
       this.start();
       return;
     }
@@ -449,7 +477,14 @@ class PaperSession {
   interrupt() {
     const dropped = this.queue.filter((q) => q.kind === 'user').length;
     this.queue = this.queue.filter((q) => q.kind === 'skill');
-    if (dropped) this.addSystem(`Остановлено. Вопросы в очереди отменены: ${dropped}`);
+    if (dropped)
+      this.addSystem(
+        tr(
+          `Stopped. Queued questions cancelled: ${dropped}`,
+          `Остановлено. Вопросы в очереди отменены: ${dropped}`,
+          `已停止。已取消排队的问题：${dropped} 个`,
+        ),
+      );
     if (!this.turn || !this.proc) {
       this.emit({ type: 'status', session: this.info() });
       return;
@@ -559,7 +594,11 @@ class PaperSession {
         if (!turn) return;
         if (!this.partialText() && typeof ev.result === 'string') turn.committed = ev.result;
         const failed = ev.is_error && !turn.interrupted;
-        this.finishTurn(failed ? (typeof ev.result === 'string' && ev.result) || ev.subtype || 'Claude вернул ошибку' : undefined);
+        this.finishTurn(
+          failed
+            ? (typeof ev.result === 'string' && ev.result) || ev.subtype || tr('Claude returned an error', 'Claude вернул ошибку', 'Claude 返回了错误')
+            : undefined,
+        );
         return;
       }
     }
@@ -584,8 +623,11 @@ class PaperSession {
       } else if (!error) {
         const meta = this.meta();
         updatePaper(meta.id, { activatedSkills: [...new Set([...(meta.activatedSkills || []), turn.skill!])] });
-        this.addSystem(`Скилл ${turn.skill} включён для этой статьи`);
-      } else this.addSystem(`Не удалось включить ${turn.skill}: ${error}`, true);
+        this.addSystem(
+          tr(`Skill ${turn.skill} enabled for this paper`, `Скилл ${turn.skill} включён для этой статьи`, `已为这篇论文启用技能 ${turn.skill}`),
+        );
+      } else
+        this.addSystem(tr(`Could not enable ${turn.skill}: ${error}`, `Не удалось включить ${turn.skill}: ${error}`, `无法启用 ${turn.skill}：${error}`), true);
     } else {
       for (const t of turn.tools) if (t.status === 'running') t.status = turn.interrupted ? 'error' : 'done';
       const message: ChatMessage = {
@@ -612,10 +654,24 @@ class PaperSession {
 }
 
 function explainFailure(stderr: string, code: number | null): string {
-  if (/ENOENT|command not found/i.test(stderr)) return `Не найден Claude CLI (${CLAUDE_BIN}). Установи Claude Code или укажи путь в CLAUDE_BIN.`;
-  if (/log ?in|auth|credential|unauthorized|401/i.test(stderr)) return 'Claude CLI не авторизован. Запусти `claude` в терминале и выполни /login.';
+  if (/ENOENT|command not found/i.test(stderr))
+    return tr(
+      `Claude CLI not found (${CLAUDE_BIN}). Install Claude Code or set its path in CLAUDE_BIN.`,
+      `Не найден Claude CLI (${CLAUDE_BIN}). Установи Claude Code или укажи путь в CLAUDE_BIN.`,
+      `未找到 Claude CLI（${CLAUDE_BIN}）。请安装 Claude Code，或在 CLAUDE_BIN 中指定其路径。`,
+    );
+  if (/log ?in|auth|credential|unauthorized|401/i.test(stderr))
+    return tr(
+      'Claude CLI is not logged in. Run `claude` in a terminal and use /login.',
+      'Claude CLI не авторизован. Запусти `claude` в терминале и выполни /login.',
+      'Claude CLI 尚未登录。请在终端运行 `claude` 并执行 /login。',
+    );
   const tail = stderr.split('\n').filter(Boolean).slice(-3).join(' ');
-  return `Claude завершился${code !== null ? ` с кодом ${code}` : ''}${tail ? `: ${tail}` : ''}`;
+  return tr(
+    `Claude exited${code !== null ? ` with code ${code}` : ''}${tail ? `: ${tail}` : ''}`,
+    `Claude завершился${code !== null ? ` с кодом ${code}` : ''}${tail ? `: ${tail}` : ''}`,
+    `Claude 已退出${code !== null ? `，退出码 ${code}` : ''}${tail ? `：${tail}` : ''}`,
+  );
 }
 
 const sessions = new Map<string, PaperSession>();

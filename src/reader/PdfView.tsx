@@ -5,6 +5,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { ArrowLeft, BookOpen, CornerDownRight, Loader2, MessageCircle, MessageCircleQuestion } from 'lucide-react';
 import { fileUrl } from '../api.ts';
+import { pageRef, t } from '../i18n.ts';
 import type { Highlight, NRect } from '../../shared/types.ts';
 import {
   HL_COLORS,
@@ -664,7 +665,7 @@ export const PdfView = forwardRef<ViewerHandle, ViewerProps>(function PdfView(pr
     });
   };
 
-  if (error) return <div className="viewer-error">Не удалось открыть PDF: {error}</div>;
+  if (error) return <div className="viewer-error">{t(`Couldn't open the PDF: ${error}`, `Не удалось открыть PDF: ${error}`, `无法打开 PDF：${error}`)}</div>;
 
   const currentHit = hits[hitIndex] || null;
 
@@ -686,7 +687,7 @@ export const PdfView = forwardRef<ViewerHandle, ViewerProps>(function PdfView(pr
     >
       {!doc && (
         <div className="viewer-loading">
-          <Loader2 className="spin" /> Открываю PDF…
+          <Loader2 className="spin" /> {t('Opening PDF…', 'Открываю PDF…', '正在打开 PDF…')}
         </div>
       )}
       {doc && (
@@ -720,7 +721,7 @@ export const PdfView = forwardRef<ViewerHandle, ViewerProps>(function PdfView(pr
               scrollRef.current?.scrollTo({ top, behavior: 'smooth' });
             }}
           >
-            <ArrowLeft size={15} /> Вернуться к чтению
+            <ArrowLeft size={15} /> {t('Back to reading', 'Вернуться к чтению', '返回阅读位置')}
           </button>,
           document.body,
         )}
@@ -739,18 +740,18 @@ export const PdfView = forwardRef<ViewerHandle, ViewerProps>(function PdfView(pr
           >
             {peek.image ? <img src={peek.image} alt="" /> : <div className="peek-loading"><Loader2 className="spin" size={16} /></div>}
             <div className="peek-foot">
-              <span className="muted">стр. {peek.dest.page}</span>
+              <span className="muted">{pageRef(peek.dest.page)}</span>
               <div className="row gap-4">
                 {peek.cited && props.onOpenUrl && (
                   <button className="chip" title={peek.cited} onClick={() => (setPeek(null), props.onOpenUrl!(peek.cited!))}>
-                    <BookOpen size={13} /> Открыть статью
+                    <BookOpen size={13} /> {t('Open paper', 'Открыть статью', '打开论文')}
                   </button>
                 )}
                 <button className="chip" onClick={() => askAboutPeek(peek)} disabled={!peek.image}>
-                  <MessageCircleQuestion size={13} /> Спросить
+                  <MessageCircleQuestion size={13} /> {t('Ask', 'Спросить', '提问')}
                 </button>
                 <button className="chip" onClick={() => goToDest(peek.raw)}>
-                  <CornerDownRight size={13} /> Перейти
+                  <CornerDownRight size={13} /> {t('Go to', 'Перейти', '跳转')}
                 </button>
               </div>
             </div>

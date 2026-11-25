@@ -131,9 +131,10 @@ export async function extractPdf(data: Uint8Array): Promise<PdfInfo> {
       page.cleanup();
     }
 
+    // paper.md is read by Claude, so its labels are English; the <!-- page N --> marker is what the prompt points to.
     const markdown =
-      `# ${title || 'Без названия'}\n\n` +
-      pages.map((text, i) => `<!-- page ${i + 1} -->\n## [стр. ${i + 1}]\n\n${text || '_(на странице нет текста — вероятно, рисунок или скан)_'}\n`).join('\n');
+      `# ${title || 'Untitled'}\n\n` +
+      pages.map((text, i) => `<!-- page ${i + 1} -->\n## [p. ${i + 1}]\n\n${text || '_(no text on this page — probably a figure or a scan)_'}\n`).join('\n');
     return { title, authors: author || undefined, pages: doc.numPages, markdown, outline: guessOutline(allLines) };
   } finally {
     await task.destroy();
@@ -141,7 +142,10 @@ export async function extractPdf(data: Uint8Array): Promise<PdfInfo> {
 }
 
 const NUMBERED = /^((\d{1,2})(\.\d{1,2}){0,2}\.?|[A-H](\.\d{1,2}){0,2}\.?|[IVX]{1,4}\.)\s+\p{Lu}/u;
-const NAMED = /^(abstract|introduction|related work|background|method(s|ology)?|experiments?|results|discussion|conclusions?|references|bibliography|acknowledg(e)?ments?|appendix|аннотация|введение|заключение|литература)\b/i;
+// \b only knows ASCII letters, so the end of a name is "no letter or digit follows". Chinese has no
+// spaces between words: a Chinese name ("1 引言", "三、实验结果") may carry a number and a few more characters, nothing else.
+const NAMED =
+  /^((abstract|introduction|related work|background|method(s|ology)?|experiments?|results|discussion|conclusions?|references|bibliography|acknowledg(e)?ments?|appendix|аннотация|введение|заключение|литература)(?![\p{L}\p{N}])|(\d{1,2}(\.\d{1,2}){0,2}\.?\s*|[一二三四五六七八九十]{1,3}、\s*)?(摘要|引言|相关工作|方法|实验|结果|讨论|结论|参考文献|附录)[\p{Script=Han}\w ]{0,4}$)/iu;
 
 /** Section headings: bigger than body text, or numbered/named like a section, and short. */
 function guessOutline(lines: (Line & { page: number })[]): OutlineEntry[] {
@@ -151,7 +155,8 @@ function guessOutline(lines: (Line & { page: number })[]): OutlineEntry[] {
   const out: OutlineEntry[] = [];
   for (const l of lines) {
     const t = l.text;
-    if (t.length < 3 || t.length > 90 || /[.,;:]$/.test(t) || !/\p{L}{3}/u.test(t)) continue;
+    // Chinese headings are often two characters ("引言").
+    if (t.length < 2 || t.length > 90 || /[.,;:]$/.test(t) || !/\p{L}{3}|\p{Script=Han}{2}/u.test(t)) continue;
     const big = l.h >= body * 1.15;
     const numbered = NUMBERED.test(t) && l.h >= body * 0.97 && !/\d{3,}/.test(t.split(' ')[0]);
     const named = NAMED.test(t) && t.split(' ').length <= 4 && l.h >= body * 0.97;

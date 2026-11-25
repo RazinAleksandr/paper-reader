@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { domToCanvas } from 'modern-screenshot';
 import { Loader2 } from 'lucide-react';
 import { fileUrl } from '../api.ts';
+import { t } from '../i18n.ts';
 import type { Highlight, HighlightColor } from '../../shared/types.ts';
 import { cleanSelectionText, type OutlineItem, type ViewerHandle, type ViewerProps } from './types.ts';
 import { AreaSelect, type AreaResult } from './AreaSelect.tsx';
@@ -305,7 +306,7 @@ export const HtmlView = forwardRef<ViewerHandle, ViewerProps>(function HtmlView(
     onCapture({ kind: 'image', image: crop.toDataURL('image/png'), text, anchor: r.anchor });
   };
 
-  if (error) return <div className="viewer-error">Не удалось открыть статью: {error}</div>;
+  if (error) return <div className="viewer-error">{t(`Couldn't open the paper: ${error}`, `Не удалось открыть статью: ${error}`, `无法打开论文：${error}`)}</div>;
 
   return (
     <div
@@ -317,7 +318,7 @@ export const HtmlView = forwardRef<ViewerHandle, ViewerProps>(function HtmlView(
     >
       {!html && (
         <div className="viewer-loading">
-          <Loader2 className="spin" /> Открываю статью…
+          <Loader2 className="spin" /> {t('Opening the paper…', 'Открываю статью…', '正在打开论文…')}
         </div>
       )}
       {html && (

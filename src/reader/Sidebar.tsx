@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, Highlighter, ListTree, MessageCircleQuestion } from 'lucide-react';
 import type { Highlight } from '../../shared/types.ts';
 import { HL_COLORS, type OutlineItem } from './types.ts';
+import { pageRef, t } from '../i18n.ts';
 
 function OutlineTree({ items, onPage, current, depth = 0 }: { items: OutlineItem[]; onPage(p: number): void; current: number; depth?: number }) {
   return (
@@ -57,10 +58,10 @@ export function Sidebar({
     <nav className="sidebar">
       <div className="seg full">
         <button className={tab === 'outline' ? 'on' : ''} onClick={() => setTab('outline')}>
-          <ListTree size={14} /> Оглавление
+          <ListTree size={14} /> {t('Contents', 'Оглавление', '目录')}
         </button>
         <button className={tab === 'highlights' ? 'on' : ''} onClick={() => setTab('highlights')}>
-          <Highlighter size={14} /> Выделения {highlights.length ? <span className="count">{highlights.length}</span> : null}
+          <Highlighter size={14} /> {t('Highlights', 'Выделения', '高亮')} {highlights.length ? <span className="count">{highlights.length}</span> : null}
         </button>
       </div>
       <div className="sidebar-body">
@@ -68,7 +69,7 @@ export function Sidebar({
           (outline.length ? (
             <OutlineTree items={outline} onPage={onPage} current={current} />
           ) : (
-            <p className="muted small pad">В файле нет оглавления.</p>
+            <p className="muted small pad">{t('This file has no table of contents.', 'В файле нет оглавления.', '这个文件没有目录。')}</p>
           ))}
         {tab === 'highlights' &&
           (sorted.length ? (
@@ -77,13 +78,13 @@ export function Sidebar({
                 <li key={h.id} onClick={() => onHighlight(h)}>
                   <span className="hl-bar" style={{ background: HL_COLORS[h.color] }} />
                   <div className="hl-item">
-                    <div className="hl-text">{h.text || 'Область'}</div>
+                    <div className="hl-text">{h.text || t('Area', 'Область', '区域')}</div>
                     {h.note && <div className="hl-note">{h.note}</div>}
                     <div className="hl-meta">
-                      {h.page ? `стр. ${h.page}` : ''}
+                      {h.page ? pageRef(h.page) : ''}
                       <button
                         className="icon-btn ghost tiny"
-                        title="Спросить Claude"
+                        title={t('Ask Claude', 'Спросить Claude', '询问 Claude')}
                         onClick={(e) => {
                           e.stopPropagation();
                           onAsk(h);
@@ -97,7 +98,13 @@ export function Sidebar({
               ))}
             </ul>
           ) : (
-            <p className="muted small pad">Выдели текст и нажми на цветной кружок — выделение появится здесь.</p>
+            <p className="muted small pad">
+              {t(
+                'Select text and click a colored dot — the highlight will appear here.',
+                'Выдели текст и нажми на цветной кружок — выделение появится здесь.',
+                '选中文字并点击彩色圆点，高亮就会出现在这里。',
+              )}
+            </p>
           ))}
       </div>
     </nav>
